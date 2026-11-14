@@ -1,0 +1,11 @@
+.git
+.gitignore
+bin
+results
+docs
+timelines
+scripts
+*.csv
+*.png
+*.pdf
+.DS_Store

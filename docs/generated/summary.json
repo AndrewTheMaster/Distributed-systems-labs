@@ -1,0 +1,9 @@
+{
+  "sim_main_rows": 700,
+  "docker_rows": 84,
+  "docker_nodes": 110,
+  "sim_nodes_max": 400,
+  "total_sim_runs": 784,
+  "total_docker_runs": 84,
+  "docker_send_errors": 0
+}
