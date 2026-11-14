@@ -89,6 +89,8 @@ type Stats struct {
 	Duplicates int64 `json:"duplicates"`
 	Forwarded  int64 `json:"forwarded"`
 	SendErrors int64 `json:"send_errors"`
+	Ignored    int64 `json:"ignored"`
+	Datagrams  int64 `json:"datagrams"`
 }
 
 // State is returned by GET /state and collected by the coordinator.
@@ -147,6 +149,12 @@ type Result struct {
 	Duplicates         int64   `csv:"duplicates"`
 	Dropped            int64   `csv:"dropped"`
 	SendErrors         int64   `csv:"send_errors"`
+	KernelOut          int64   `csv:"kernel_out"`
+	KernelIn           int64   `csv:"kernel_in"`
+	KernelSndbufErr    int64   `csv:"kernel_sndbuf_errors"`
+	KernelRcvbufErr    int64   `csv:"kernel_rcvbuf_errors"`
+	Ignored            int64   `csv:"ignored"`
+	Datagrams          int64   `csv:"datagrams"`
 	ElapsedMS          float64 `csv:"elapsed_ms"`
 	Converged          bool    `csv:"converged"`
 	TimedOut           bool    `csv:"timed_out"`

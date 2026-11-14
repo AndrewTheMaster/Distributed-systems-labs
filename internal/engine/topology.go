@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"math/rand"
+	"sort"
 )
 
 func NodeIDs(n int) []string {
@@ -46,12 +47,18 @@ func addEdge(adj map[string]map[string]struct{}, a, b string) {
 	adj[b][a] = struct{}{}
 }
 
+// toList converts adjacency sets to sorted slices. Sorting matters: map
+// iteration order in Go is random, and neighbour order decides which peers
+// a seeded RNG selects, so without sorting runs are not reproducible.
 func toList(ids []string, adj map[string]map[string]struct{}) map[string][]string {
 	out := make(map[string][]string, len(ids))
 	for _, id := range ids {
+		peers := make([]string, 0, len(adj[id]))
 		for peer := range adj[id] {
-			out[id] = append(out[id], peer)
+			peers = append(peers, peer)
 		}
+		sort.Strings(peers)
+		out[id] = peers
 	}
 	return out
 }

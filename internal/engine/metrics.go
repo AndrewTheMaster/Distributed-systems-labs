@@ -28,7 +28,7 @@ type ResultInput struct {
 func ComputeResult(in ResultInput) Result {
 	informedIntended := 0
 	times := make([]int64, 0, len(in.Intended))
-	var sent, received, duplicates, dropped, sendErrors int64
+	var sent, received, duplicates, dropped, sendErrors, ignored, datagrams int64
 	latest := in.StartedAt
 	for _, id := range in.IDs {
 		st := in.States[id]
@@ -37,6 +37,8 @@ func ComputeResult(in ResultInput) Result {
 		duplicates += st.Stats.Duplicates
 		dropped += st.Stats.Dropped
 		sendErrors += st.Stats.SendErrors
+		ignored += st.Stats.Ignored
+		datagrams += st.Stats.Datagrams
 		if st.Informed && st.FirstSeen > latest {
 			latest = st.FirstSeen
 		}
@@ -95,6 +97,8 @@ func ComputeResult(in ResultInput) Result {
 		Duplicates:         duplicates,
 		Dropped:            dropped,
 		SendErrors:         sendErrors,
+		Ignored:            ignored,
+		Datagrams:          datagrams,
 		ElapsedMS:          elapsed,
 		Converged:          coverageIntended >= 0.999,
 		TimedOut:           coverageIntended < 0.999,

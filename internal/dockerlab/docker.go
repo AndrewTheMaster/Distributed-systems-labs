@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/AndrewTheMaster/Distributed-systems-labs/internal/agent"
 	"github.com/AndrewTheMaster/Distributed-systems-labs/internal/engine"
 )
 
@@ -30,6 +31,7 @@ type Options struct {
 	Build         bool
 	Keep          bool
 	Reuse         bool
+	Fresh         bool
 	Out           string
 	Algorithms    []string
 	Losses        []float64
@@ -134,6 +136,23 @@ func Run(opts Options) error {
 		return fmt.Errorf("docker daemon is not available: %w", err)
 	}
 	names := namesFor(opts)
+	var ips []string
+	startAll := func() error {
+		runID := fmt.Sprintf("%d", time.Now().UnixNano())
+		var err error
+		names, err = startContainers(opts, runID)
+		if err != nil {
+			return err
+		}
+		if err := waitHealthy(opts); err != nil {
+			return err
+		}
+		ips, err = containerIPs(names)
+		if err != nil {
+			return fmt.Errorf("container IP discovery: %w", err)
+		}
+		return nil
+	}
 	if !opts.Reuse {
 		if opts.Build {
 			fmt.Printf("building image %s\n", opts.Image)
@@ -144,10 +163,7 @@ func Run(opts Options) error {
 		if err := ensureNetwork(opts.Network); err != nil {
 			return err
 		}
-		runID := fmt.Sprintf("%d", time.Now().UnixNano())
-		var err error
-		names, err = startContainers(opts, runID)
-		if err != nil {
+		if err := startAll(); err != nil {
 			cleanup(names)
 			return err
 		}
@@ -156,14 +172,16 @@ func Run(opts Options) error {
 			defer dockerIgnore("network", "rm", opts.Network)
 		}
 	}
-
-	fmt.Printf("waiting for %d containers to become healthy\n", opts.Nodes)
-	if err := waitHealthy(opts); err != nil {
-		return err
-	}
-	ips, err := containerIPs(names)
-	if err != nil {
-		return fmt.Errorf("container IP discovery: %w", err)
+	if opts.Reuse {
+		fmt.Printf("reusing running containers\n")
+		if err := waitHealthy(opts); err != nil {
+			return err
+		}
+		var err error
+		ips, err = containerIPs(names)
+		if err != nil {
+			return fmt.Errorf("container IP discovery: %w", err)
+		}
 	}
 	if err := os.MkdirAll(filepath.Dir(opts.Out), 0o755); err != nil {
 		return err
@@ -193,6 +211,11 @@ func Run(opts Options) error {
 					done++
 					expID := fmt.Sprintf("docker-%s-l%.2f-f%.2f-s%d", alg, loss, fail, seed)
 					fmt.Printf("[%d/%d] %s nodes=%d\n", done, total, expID, opts.Nodes)
+					if opts.Fresh && !opts.Reuse {
+						if err := startAll(); err != nil {
+							return fmt.Errorf("%s: restart: %w", expID, err)
+						}
+					}
 					res, err := runOne(opts, engine.ParseAlgorithm(alg), loss, fail, seed, ports, ips, expID)
 					if err != nil {
 						return fmt.Errorf("%s: %w", expID, err)
@@ -278,6 +301,10 @@ func runOne(opts Options, alg engine.Algorithm, loss, fail float64, seed int64, 
 		}
 	}
 
+	kernelBefore, err := kernelTotals(ports)
+	if err != nil {
+		return engine.Result{}, err
+	}
 	startedAt := time.Now().UnixMilli() + int64(opts.StartDelayMS)
 	msgID := "m-" + expID
 	startReq := engine.StartRequest{
@@ -317,12 +344,16 @@ func runOne(opts Options, alg engine.Algorithm, loss, fail float64, seed int64, 
 	if err != nil {
 		return engine.Result{}, err
 	}
+	kernelAfter, err := kernelTotals(ports)
+	if err != nil {
+		return engine.Result{}, err
+	}
 	alive := len(ids) - len(failedStart)
 	groupSize := 0
 	if alg == engine.Multicast {
 		groupSize = len(group)
 	}
-	return engine.ComputeResult(engine.ResultInput{
+	res := engine.ComputeResult(engine.ResultInput{
 		Mode:         "docker",
 		ExperimentID: expID,
 		Algorithm:    alg,
@@ -340,7 +371,38 @@ func runOne(opts Options, alg engine.Algorithm, loss, fail float64, seed int64, 
 		IDs:          ids,
 		States:       states,
 		StartedAt:    startedAt,
-	}), nil
+	})
+	res.KernelOut = kernelAfter.OutDatagrams - kernelBefore.OutDatagrams
+	res.KernelIn = kernelAfter.InDatagrams - kernelBefore.InDatagrams
+	res.KernelSndbufErr = kernelAfter.SndbufErrors - kernelBefore.SndbufErrors
+	res.KernelRcvbufErr = kernelAfter.RcvbufErrors - kernelBefore.RcvbufErrors
+	return res, nil
+}
+
+// kernelTotals sums the UDP counters of all node containers.
+func kernelTotals(ports []int) (agent.KernelUDP, error) {
+	var mu sync.Mutex
+	var total agent.KernelUDP
+	err := parallel(len(ports), func(i int) error {
+		resp, err := client.Get(fmt.Sprintf("http://127.0.0.1:%d/kernel", ports[i]))
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+		var k agent.KernelUDP
+		if err := json.NewDecoder(resp.Body).Decode(&k); err != nil {
+			return err
+		}
+		mu.Lock()
+		total.OutDatagrams += k.OutDatagrams
+		total.InDatagrams += k.InDatagrams
+		total.SndbufErrors += k.SndbufErrors
+		total.RcvbufErrors += k.RcvbufErrors
+		total.InErrors += k.InErrors
+		mu.Unlock()
+		return nil
+	})
+	return total, err
 }
 
 func intendedIDs(alg engine.Algorithm, ids []string, origin string, group []string, failed map[string]bool, unicastTarget string) []string {

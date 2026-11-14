@@ -7,6 +7,8 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -63,6 +65,7 @@ func RunFromEnv() error {
 	}
 	a.eng = engine.New(cfg, a.sendPacket, func() int64 { return time.Now().UnixMilli() })
 
+	enableRecvErr(conn)
 	go a.readLoop()
 	go a.tickLoop()
 
@@ -129,6 +132,10 @@ func RunFromEnv() error {
 		writeJSON(w, map[string]interface{}{"ok": true, "failed": body.Failed})
 	})
 
+	mux.HandleFunc("/kernel", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, readKernelUDP())
+	})
+
 	srv := &http.Server{
 		Addr:              controlAddr,
 		Handler:           mux,
@@ -172,6 +179,9 @@ func (a *Agent) sendPacket(to string, p engine.Packet) error {
 	if err != nil {
 		return err
 	}
+	// The write is synchronous: an ENOBUFS (local egress queue full) is
+	// returned to the engine at once and counted as a send error. IP_RECVERR
+	// (see enableRecvErr) makes the kernel report it instead of dropping silently.
 	_, err = a.udp.WriteToUDP(b, ua)
 	return err
 }
@@ -210,4 +220,57 @@ func mustResolve(addr string) *net.UDPAddr {
 		panic(err)
 	}
 	return ua
+}
+
+// KernelUDP holds the container kernel's UDP counters. They are the only
+// place where datagrams lost inside the Docker network (after leaving the
+// sender and before reaching a receiver socket) can be observed.
+type KernelUDP struct {
+	OutDatagrams int64 `json:"out_datagrams"`
+	InDatagrams  int64 `json:"in_datagrams"`
+	SndbufErrors int64 `json:"sndbuf_errors"`
+	RcvbufErrors int64 `json:"rcvbuf_errors"`
+	InErrors     int64 `json:"in_errors"`
+}
+
+// readKernelUDP parses /proc/net/snmp. On systems without procfs it returns
+// zeros.
+func readKernelUDP() KernelUDP {
+	var out KernelUDP
+	data, err := os.ReadFile("/proc/net/snmp")
+	if err != nil {
+		return out
+	}
+	var header []string
+	for _, line := range strings.Split(string(data), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 0 || fields[0] != "Udp:" {
+			continue
+		}
+		if header == nil {
+			header = fields[1:]
+			continue
+		}
+		values := fields[1:]
+		for i, name := range header {
+			if i >= len(values) {
+				break
+			}
+			v, _ := strconv.ParseInt(values[i], 10, 64)
+			switch name {
+			case "OutDatagrams":
+				out.OutDatagrams = v
+			case "InDatagrams":
+				out.InDatagrams = v
+			case "SndbufErrors":
+				out.SndbufErrors = v
+			case "RcvbufErrors":
+				out.RcvbufErrors = v
+			case "InErrors":
+				out.InErrors = v
+			}
+		}
+		break
+	}
+	return out
 }

@@ -188,6 +188,7 @@ func runDocker(args []string) {
 	build := fs.Bool("build", false, "build the image before starting")
 	keep := fs.Bool("keep", false, "keep containers after the run")
 	reuse := fs.Bool("reuse", false, "reuse already running healthy containers")
+	fresh := fs.Bool("fresh", false, "recreate containers before every experiment")
 	topology := fs.String("topology", "random", "topology: random|ring|full")
 	degree := fs.Int("degree", 6, "target graph degree")
 	losses := fs.String("losses", "0,0.2,0.4", "comma-separated packet loss probabilities")
@@ -197,8 +198,6 @@ func runDocker(args []string) {
 	seedList := fs.String("seed-list", "", "comma-separated seeds")
 	groupFrac := fs.Float64("group-frac", 0.3, "multicast group fraction")
 	fanout := fs.Int("fanout", 3, "gossip fanout")
-	latency := fs.Int("latency-ms", 5, "one-hop latency")
-	jitter := fs.Int("jitter-ms", 5, "extra one-hop latency jitter")
 	gossipMs := fs.Int("gossip-ms", 100, "gossip interval")
 	maxRounds := fs.Int("max-rounds", 60, "maximum periodic rounds")
 	rumorBudget := fs.Int("rumor-budget", 15, "rumor mongering budget")
@@ -228,6 +227,7 @@ func runDocker(args []string) {
 		Build:         *build,
 		Keep:          *keep,
 		Reuse:         *reuse,
+		Fresh:         *fresh,
 		Out:           *out,
 		Algorithms:    algorithmsToStrings(algList),
 		Losses:        parseFloats(*losses),
@@ -237,8 +237,6 @@ func runDocker(args []string) {
 		Degree:        *degree,
 		GroupFraction: *groupFrac,
 		Fanout:        *fanout,
-		LatencyMS:     *latency,
-		JitterMS:      *jitter,
 		GossipMs:      *gossipMs,
 		MaxRounds:     *maxRounds,
 		RumorBudget:   *rumorBudget,

@@ -170,10 +170,15 @@ func (e *Engine) initiateLocked() {
 func (e *Engine) Handle(p Packet) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.failed || !e.active || p.ExperimentID != e.expID {
+	e.stats.Datagrams++
+	if e.failed {
 		return
 	}
-	if e.now() < e.startedAt {
+	if !e.active || p.ExperimentID != e.expID || e.now() < e.startedAt {
+		// Packet arrived before this node was armed for the experiment
+		// (or from another experiment). It is discarded, but counted so that
+		// the cause of missing deliveries can be measured.
+		e.stats.Ignored++
 		return
 	}
 	e.stats.Received++
@@ -390,4 +395,12 @@ func (e *Engine) Informed() bool {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return e.informed
+}
+
+// CountSendError is used by transports that report asynchronous write
+// failures, so that they are visible in the experiment statistics.
+func (e *Engine) CountSendError() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.stats.SendErrors++
 }

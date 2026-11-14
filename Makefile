@@ -45,7 +45,7 @@ docker-build:
 	docker build -t ds-lab-node:latest .
 
 docker:
-	$(GO) run ./cmd/lab docker -nodes 110 -build \
+	$(GO) run ./cmd/lab docker -nodes 110 -build -fresh \
 		-algorithms unicast,multicast,broadcast,gossip_push,gossip_pull,rumor_mongering,anti_entropy \
 		-losses 0,0.2,0.4 -fails 0,0.2 -seeds 2 -max-ms 8000 \
 		-out results/docker_main.csv

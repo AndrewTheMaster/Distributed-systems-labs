@@ -1,9 +1,13 @@
 {
-  "sim_main_rows": 700,
-  "docker_rows": 84,
+  "sim_main_runs": 700,
+  "sim_topology_runs": 36,
+  "sim_scale_runs": 36,
+  "sim_crash_runs": 12,
+  "sim_total_runs": 784,
+  "docker_runs": 84,
   "docker_nodes": 110,
   "sim_nodes_max": 400,
-  "total_sim_runs": 784,
-  "total_docker_runs": 84,
-  "docker_send_errors": 0
+  "docker_send_errors_total": 0,
+  "docker_kernel_out_total": 56771,
+  "docker_kernel_in_total": 56774
 }
