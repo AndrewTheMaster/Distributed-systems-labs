@@ -2,8 +2,8 @@
 
 Лабораторная работа: алгоритмы unicast, multicast, broadcast, gossip (push, pull), rumor mongering и anti-entropy на 100+ узлах.
 
-- **Симулятор** (`lab sim`) — до 400 узлов, виртуальное время, управляемые потери и отказы.
-- **Docker** (`lab docker`) — 110 контейнеров с UDP-обменом и HTTP-управлением.
+- **Симулятор** (`lab sim`): до 400 узлов, виртуальное время, управляемые потери и отказы.
+- **Docker** (`lab docker`): 110 контейнеров с UDP-обменом и HTTP-управлением.
 
 Отчёт: [`docs/report.pdf`](docs/report.pdf) (для печати) и [`docs/report.docx`](docs/report.docx) (для Google Docs).
 
@@ -14,9 +14,9 @@
 ```
 python3 -m pip install -r requirements.txt
 make test     # тесты
-make sim      # симуляция, CSV в results/ (≈ 10 с)
+make sim      # симуляция, CSV в results/ (около 10 с)
 make figures  # рисунки в docs/img/
-make docker   # 110 контейнеров, ≈ 80 мин
+make docker   # 110 контейнеров, около 80 мин
 make report   # docs/report.pdf и docs/report.docx
 ```
 

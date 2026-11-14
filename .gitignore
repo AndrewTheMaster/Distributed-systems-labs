@@ -8,6 +8,5 @@ __pycache__/
 .venv/
 .DS_Store
 docs/report.pdf.tmp
-docs/report.html
 .env
 .env.local

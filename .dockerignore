@@ -3,7 +3,6 @@
 bin
 results
 docs
-timelines
 scripts
 *.csv
 *.png
