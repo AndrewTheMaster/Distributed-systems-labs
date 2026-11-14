@@ -118,34 +118,3 @@ func thresholdTime(times []int64, intended int, q float64, startedAt int64) floa
 	}
 	return float64(times[target-1] - startedAt)
 }
-
-type TimelinePoint struct {
-	TimeMS   int     `json:"time_ms"`
-	Coverage float64 `json:"coverage"`
-}
-
-func BuildTimeline(intended []string, states map[string]State, startedAt int64, maxMS int) []TimelinePoint {
-	if len(intended) == 0 {
-		return nil
-	}
-	times := make([]int64, 0, len(intended))
-	for _, id := range intended {
-		if st := states[id]; st.Informed {
-			times = append(times, st.FirstSeen-startedAt)
-		}
-	}
-	sort.Slice(times, func(i, j int) bool { return times[i] < times[j] })
-	step := 50
-	if maxMS < step {
-		step = 10
-	}
-	out := make([]TimelinePoint, 0, maxMS/step+1)
-	idx := 0
-	for t := 0; t <= maxMS; t += step {
-		for idx < len(times) && times[idx] <= int64(t) {
-			idx++
-		}
-		out = append(out, TimelinePoint{TimeMS: t, Coverage: float64(idx) / float64(len(intended))})
-	}
-	return out
-}

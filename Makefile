@@ -24,7 +24,7 @@ sim: sim-main sim-topology sim-scale sim-crash
 sim-main:
 	$(GO) run ./cmd/lab sim -nodes 120 -topology random -degree 6 \
 		-losses 0,0.1,0.2,0.3,0.5 -fails 0,0.1,0.2,0.3 -seeds 5 \
-		-out results/sim_main.csv -timeline-out results/timeline.csv
+		-out results/sim_main.csv
 
 sim-topology:
 	$(GO) run ./cmd/lab sim -nodes 120 -topologies random,ring,full \

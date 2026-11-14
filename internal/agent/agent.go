@@ -179,9 +179,6 @@ func (a *Agent) sendPacket(to string, p engine.Packet) error {
 	if err != nil {
 		return err
 	}
-	// The write is synchronous: an ENOBUFS (local egress queue full) is
-	// returned to the engine at once and counted as a send error. IP_RECVERR
-	// (see enableRecvErr) makes the kernel report it instead of dropping silently.
 	_, err = a.udp.WriteToUDP(b, ua)
 	return err
 }
@@ -222,9 +219,7 @@ func mustResolve(addr string) *net.UDPAddr {
 	return ua
 }
 
-// KernelUDP holds the container kernel's UDP counters. They are the only
-// place where datagrams lost inside the Docker network (after leaving the
-// sender and before reaching a receiver socket) can be observed.
+// KernelUDP holds UDP counters of the container kernel (see /proc/net/snmp).
 type KernelUDP struct {
 	OutDatagrams int64 `json:"out_datagrams"`
 	InDatagrams  int64 `json:"in_datagrams"`
@@ -233,8 +228,7 @@ type KernelUDP struct {
 	InErrors     int64 `json:"in_errors"`
 }
 
-// readKernelUDP parses /proc/net/snmp. On systems without procfs it returns
-// zeros.
+// readKernelUDP parses /proc/net/snmp; it returns zeros where procfs is absent.
 func readKernelUDP() KernelUDP {
 	var out KernelUDP
 	data, err := os.ReadFile("/proc/net/snmp")

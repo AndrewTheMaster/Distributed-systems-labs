@@ -74,11 +74,6 @@ func (s *Spec) Normalize() {
 	}
 }
 
-type Outcome struct {
-	Result   engine.Result
-	Timeline []engine.TimelinePoint
-}
-
 type event struct {
 	at     int64
 	to     string
@@ -100,8 +95,7 @@ func (q *eventQueue) Pop() interface{} {
 	return item
 }
 
-// Run executes one complete in-memory experiment.
-func Run(spec Spec) Outcome {
+func Run(spec Spec) engine.Result {
 	spec.Normalize()
 	rng := rand.New(rand.NewSource(spec.Seed))
 	ids := engine.NodeIDs(spec.Nodes)
@@ -110,7 +104,6 @@ func Run(spec Spec) Outcome {
 	group := engine.PickGroup(ids, origin, spec.GroupFraction, rng)
 	failedAtStart := engine.PickFailed(ids, origin, spec.FailFraction, rng)
 	if spec.FailAtMS > 0 {
-		// Crash experiment: nodes are healthy at t=0 and fail later.
 		failedAtStart = nil
 	}
 	failedAtStartSet := engine.SetOf(failedAtStart)
@@ -250,8 +243,7 @@ func Run(spec Spec) Outcome {
 		States:       states,
 		StartedAt:    startedAt,
 	})
-	timeline := engine.BuildTimeline(intended, states, startedAt, spec.MaxMS)
-	return Outcome{Result: result, Timeline: timeline}
+	return result
 }
 
 func intendedIDs(alg engine.Algorithm, ids []string, origin string, group []string, failed map[string]bool, unicastTarget string) []string {

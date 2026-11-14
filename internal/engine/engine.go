@@ -6,13 +6,10 @@ import (
 	"time"
 )
 
-// SendFunc delivers one already-serialized application packet to a peer.
-// A non-nil error is counted as a send error and usually means the peer address
-// could not be resolved or the UDP socket rejected the datagram.
+// SendFunc delivers one serialized packet to a peer; a non-nil error counts as a send error.
 type SendFunc func(to string, p Packet) error
 
-// Engine is the transport-independent dissemination state machine. The same
-// code is used by the in-memory simulator and by the Docker UDP agent.
+// Engine is the transport-independent dissemination state machine shared by the simulator and the agent.
 type Engine struct {
 	mu   sync.Mutex
 	cfg  Config
@@ -113,8 +110,7 @@ func (e *Engine) Failed() bool {
 	return e.failed
 }
 
-// Start arms the local state machine. It must be called on every node. Only
-// the node whose ID equals req.Origin starts the actual dissemination.
+// Start arms the node for an experiment; only the origin starts dissemination.
 func (e *Engine) Start(req StartRequest) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -162,8 +158,6 @@ func (e *Engine) initiateLocked() {
 		e.lastPeriodic = e.now()
 		e.pushLocked(e.now())
 	case GossipPull, AntiEntropy:
-		// Uninformed nodes pull/digest from Tick; the origin will also
-		// participate in anti-entropy and answer pulls.
 	}
 }
 
@@ -175,9 +169,7 @@ func (e *Engine) Handle(p Packet) {
 		return
 	}
 	if !e.active || p.ExperimentID != e.expID || e.now() < e.startedAt {
-		// Packet arrived before this node was armed for the experiment
-		// (or from another experiment). It is discarded, but counted so that
-		// the cause of missing deliveries can be measured.
+		// Not armed for this experiment yet; counted for diagnostics.
 		e.stats.Ignored++
 		return
 	}
@@ -222,7 +214,6 @@ func (e *Engine) onDataLocked(p Packet) {
 		e.lastPeriodic = e.now()
 		e.pushLocked(e.now())
 	case Multicast, GossipPull, AntiEntropy, Unicast:
-		// No proactive forwarding.
 	}
 }
 
@@ -397,8 +388,7 @@ func (e *Engine) Informed() bool {
 	return e.informed
 }
 
-// CountSendError is used by transports that report asynchronous write
-// failures, so that they are visible in the experiment statistics.
+// CountSendError records a send failure reported by the transport.
 func (e *Engine) CountSendError() {
 	e.mu.Lock()
 	defer e.mu.Unlock()

@@ -41,8 +41,6 @@ type Options struct {
 	Degree        int
 	GroupFraction float64
 	Fanout        int
-	LatencyMS     int
-	JitterMS      int
 	GossipMs      int
 	MaxRounds     int
 	RumorBudget   int
@@ -100,9 +98,6 @@ func (o *Options) normalize() {
 	}
 	if o.Fanout <= 0 {
 		o.Fanout = 3
-	}
-	if o.LatencyMS < 0 {
-		o.LatencyMS = 0
 	}
 	if o.GossipMs <= 0 {
 		o.GossipMs = 100
@@ -281,8 +276,6 @@ func runOne(opts Options, alg engine.Algorithm, loss, fail float64, seed int64, 
 			Neighbors:        adj[id],
 			Group:            group,
 			Loss:             loss,
-			LatencyMS:        opts.LatencyMS,
-			JitterMS:         opts.JitterMS,
 			Fanout:           opts.Fanout,
 			GossipIntervalMS: opts.GossipMs,
 			MaxRounds:        opts.MaxRounds,
@@ -379,7 +372,6 @@ func runOne(opts Options, alg engine.Algorithm, loss, fail float64, seed int64, 
 	return res, nil
 }
 
-// kernelTotals sums the UDP counters of all node containers.
 func kernelTotals(ports []int) (agent.KernelUDP, error) {
 	var mu sync.Mutex
 	var total agent.KernelUDP

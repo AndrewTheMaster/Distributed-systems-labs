@@ -68,10 +68,6 @@ func runSim(args []string) {
 	tickMS := fs.Int("tick-ms", 10, "simulation tick")
 	failAtMS := fs.Int("fail-at-ms", 0, "crash nodes at this time (0 = fail at start)")
 	out := fs.String("out", "results/sim_main.csv", "CSV output")
-	timelineOut := fs.String("timeline-out", "", "optional timeline CSV output")
-	timelineAlgos := fs.String("timeline-algos", "broadcast,gossip_push,anti_entropy", "algorithms for timeline CSV")
-	timelineLoss := fs.Float64("timeline-loss", 0.2, "loss for timeline CSV")
-	timelineFail := fs.Float64("timeline-fail", 0.1, "failure fraction for timeline CSV")
 	_ = fs.Parse(args)
 
 	algList := engine.AllAlgorithms()
@@ -81,9 +77,6 @@ func runSim(args []string) {
 			algList = append(algList, engine.ParseAlgorithm(a))
 		}
 	}
-	lossList := parseFloats(*losses)
-	failList := parseFloats(*fails)
-	seedValues := parseSeeds(*seeds, *seedList)
 	topoList := []string{*topology}
 	if *topologyList != "" {
 		topoList = split(*topologyList)
@@ -92,10 +85,9 @@ func runSim(args []string) {
 	if *nodeList != "" {
 		nodeValues = parseInts(*nodeList)
 	}
-	timelineSet := map[string]bool{}
-	for _, a := range split(*timelineAlgos) {
-		timelineSet[string(engine.ParseAlgorithm(a))] = true
-	}
+	lossList := parseFloats(*losses)
+	failList := parseFloats(*fails)
+	seedValues := parseSeeds(*seeds, *seedList)
 
 	f, err := os.Create(*out)
 	if err != nil {
@@ -105,21 +97,6 @@ func runSim(args []string) {
 	w := csv.NewWriter(f)
 	defer w.Flush()
 	writeHeader(w)
-
-	var tl *csv.Writer
-	if *timelineOut != "" {
-		if err := os.MkdirAll(dirOf(*timelineOut), 0o755); err != nil {
-			fatal(err)
-		}
-		tf, err := os.Create(*timelineOut)
-		if err != nil {
-			fatal(err)
-		}
-		defer tf.Close()
-		tl = csv.NewWriter(tf)
-		defer tl.Flush()
-		_ = tl.Write([]string{"algorithm", "seed", "loss", "fail_fraction", "time_ms", "coverage"})
-	}
 
 	total := len(algList) * len(lossList) * len(failList) * len(seedValues) * len(topoList) * len(nodeValues)
 	done := 0
@@ -132,7 +109,7 @@ func runSim(args []string) {
 							done++
 							expID := fmt.Sprintf("sim-%s-%s-n%d-l%.2f-f%.2f-s%d", topo, alg, n, loss, fail, seed)
 							fmt.Printf("[%d/%d] %s\n", done, total, expID)
-							outcome := sim.Run(sim.Spec{
+							res := sim.Run(sim.Spec{
 								ExperimentID:     expID,
 								Algorithm:        alg,
 								Nodes:            n,
@@ -152,23 +129,10 @@ func runSim(args []string) {
 								MaxMS:            *maxMS,
 								TickMS:           *tickMS,
 							})
-							if err := writeRow(w, outcome.Result); err != nil {
+							if err := writeRow(w, res); err != nil {
 								fatal(err)
 							}
 							w.Flush()
-							if tl != nil && timelineSet[string(alg)] && topo == "random" && n == 120 &&
-								loss == *timelineLoss && fail == *timelineFail && seed == seedValues[0] {
-								for _, p := range outcome.Timeline {
-									_ = tl.Write([]string{
-										string(alg),
-										strconv.FormatInt(seed, 10),
-										strconv.FormatFloat(loss, 'f', 2, 64),
-										strconv.FormatFloat(fail, 'f', 2, 64),
-										strconv.Itoa(p.TimeMS),
-										strconv.FormatFloat(p.Coverage, 'f', 4, 64),
-									})
-								}
-							}
 						}
 					}
 				}
@@ -349,14 +313,6 @@ func algorithmsToStrings(algs []engine.Algorithm) []string {
 		out[i] = string(a)
 	}
 	return out
-}
-
-func dirOf(path string) string {
-	i := strings.LastIndex(path, "/")
-	if i <= 0 {
-		return "."
-	}
-	return path[:i]
 }
 
 func fatal(err error) {

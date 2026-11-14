@@ -44,8 +44,7 @@ const (
 	PacketStale  PacketType = "stale"
 )
 
-// Packet is a single application-level message. JSON is used both by UDP and
-// by the in-memory simulator, so the format is intentionally small.
+// Packet is one application-level message (JSON on the wire).
 type Packet struct {
 	Type         PacketType `json:"type"`
 	ExperimentID string     `json:"experiment_id"`
@@ -61,7 +60,7 @@ type Packet struct {
 	Payload      string     `json:"payload,omitempty"`
 }
 
-// Config is pushed to every node before an experiment.
+// Config is sent to every node before an experiment.
 type Config struct {
 	NodeID           string            `json:"node_id"`
 	Algorithm        Algorithm         `json:"algorithm"`
@@ -80,7 +79,7 @@ type Config struct {
 	Seed             int64             `json:"seed"`
 }
 
-// Stats is monotonically increasing per experiment.
+// Stats are per-experiment counters.
 type Stats struct {
 	Attempted  int64 `json:"attempted"`
 	Sent       int64 `json:"sent"`
@@ -93,7 +92,7 @@ type Stats struct {
 	Datagrams  int64 `json:"datagrams"`
 }
 
-// State is returned by GET /state and collected by the coordinator.
+// State is returned by GET /state.
 type State struct {
 	NodeID       string   `json:"node_id"`
 	ExperimentID string   `json:"experiment_id"`
@@ -111,7 +110,7 @@ type State struct {
 	Loss         float64  `json:"loss"`
 }
 
-// StartRequest tells a node to originate or join a dissemination round.
+// StartRequest arms a node for an experiment.
 type StartRequest struct {
 	ExperimentID string `json:"experiment_id"`
 	MessageID    string `json:"message_id"`
@@ -120,8 +119,7 @@ type StartRequest struct {
 	Payload      string `json:"payload"`
 }
 
-// Result is one row of the experiment CSV. Times are milliseconds relative to
-// the coordinator's start timestamp.
+// Result is one CSV row; times are milliseconds from the start.
 type Result struct {
 	Mode               string  `csv:"mode"`
 	ExperimentID       string  `csv:"experiment_id"`

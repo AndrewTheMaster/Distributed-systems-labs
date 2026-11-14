@@ -16,9 +16,8 @@ func NodeIDs(n int) []string {
 
 func NodeID(i int) string { return fmt.Sprintf("n%03d", i) }
 
-// Topology builds a symmetric adjacency list. Supported names: random, ring,
-// full. random starts from a ring (so it is always connected) and then adds
-// random edges until every node has at least the requested degree.
+// Topology returns a symmetric adjacency list for random, ring or full graphs.
+// The random graph starts from a ring, so it is always connected.
 func Topology(name string, n, degree int, rng *rand.Rand) map[string][]string {
 	ids := NodeIDs(n)
 	switch name {
@@ -47,9 +46,7 @@ func addEdge(adj map[string]map[string]struct{}, a, b string) {
 	adj[b][a] = struct{}{}
 }
 
-// toList converts adjacency sets to sorted slices. Sorting matters: map
-// iteration order in Go is random, and neighbour order decides which peers
-// a seeded RNG selects, so without sorting runs are not reproducible.
+// toList converts adjacency sets to sorted slices so that seeded runs are reproducible.
 func toList(ids []string, adj map[string]map[string]struct{}) map[string][]string {
 	out := make(map[string][]string, len(ids))
 	for _, id := range ids {
@@ -113,7 +110,7 @@ func fullGraph(ids []string) map[string][]string {
 	return toList(ids, adj)
 }
 
-// PickGroup returns a random subset that does not contain origin.
+// PickGroup returns a random subset without origin.
 func PickGroup(ids []string, origin string, fraction float64, rng *rand.Rand) []string {
 	candidates := make([]string, 0, len(ids))
 	for _, id := range ids {
@@ -132,7 +129,7 @@ func PickGroup(ids []string, origin string, fraction float64, rng *rand.Rand) []
 	return append([]string(nil), candidates[:k]...)
 }
 
-// PickFailed returns a random subset of nodes that does not contain origin.
+// PickFailed returns a random subset of nodes without origin.
 func PickFailed(ids []string, origin string, fraction float64, rng *rand.Rand) []string {
 	candidates := make([]string, 0, len(ids))
 	for _, id := range ids {

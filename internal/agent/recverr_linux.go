@@ -6,9 +6,7 @@ import (
 	"syscall"
 )
 
-// enableRecvErr makes the kernel report local send failures (ENOBUFS when the
-// egress queue is full) to the application instead of silently dropping the
-// datagram and returning success.
+// enableRecvErr makes the kernel report ENOBUFS to the application instead of dropping silently.
 func enableRecvErr(conn *net.UDPConn) {
 	raw, err := conn.SyscallConn()
 	if err != nil {
