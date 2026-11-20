@@ -2,8 +2,7 @@ SHELL := /bin/bash
 GO ?= go
 PY ?= python3
 
-.PHONY: build test vet fmt sim sim-main sim-topology sim-scale sim-crash \
-	docker-build docker figures report all full clean
+.PHONY: build test vet fmt sim sim-main sim-topology sim-scale sim-crash docker figures clean
 
 build:
 	mkdir -p bin
@@ -41,9 +40,6 @@ sim-crash:
 		-algorithms broadcast,gossip_push,gossip_pull,anti_entropy \
 		-losses 0.2 -fails 0.2 -fail-at-ms 500 -seeds 30 -out results/sim_crash.csv
 
-docker-build:
-	docker build -t ds-lab-node:latest .
-
 docker:
 	$(GO) run ./cmd/lab docker -nodes 110 -build -fresh \
 		-algorithms unicast,multicast,broadcast,gossip_push,gossip_pull,rumor_mongering,anti_entropy \
@@ -52,13 +48,6 @@ docker:
 
 figures:
 	$(PY) scripts/analyze.py
-
-report: figures
-	$(PY) scripts/build_report.py
-
-all: test sim figures report
-
-full: test sim docker figures report
 
 clean:
 	rm -rf bin

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render the figures of docs/report.md from results/*.csv (means with 95 % CI)."""
+"""Render the report figures from results/*.csv: means with 95 % confidence intervals."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import pandas as pd
 
-from report_tables import ci
+from scipy import stats
 
 ROOT = Path(__file__).resolve().parents[1]
 RES = ROOT / "results"
@@ -62,6 +62,18 @@ def load(name: str) -> pd.DataFrame:
     df = pd.read_csv(path)
     df["algorithm"] = df["algorithm"].astype(str)
     return df
+
+
+def ci(values) -> tuple[float, float, int] | None:
+    """Mean, 95 % half-width (Student t) and sample size."""
+    x = pd.Series(values).dropna()
+    n = len(x)
+    if n == 0:
+        return None
+    mean = float(x.mean())
+    if n < 2:
+        return mean, 0.0, n
+    return mean, float(stats.t.ppf(0.975, n - 1) * x.std(ddof=1) / n**0.5), n
 
 
 def agg(df: pd.DataFrame, keys: list[str]) -> pd.DataFrame:

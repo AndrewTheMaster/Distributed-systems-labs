@@ -5,7 +5,7 @@
 - **Симулятор** (`lab sim`): до 400 узлов, виртуальное время, управляемые потери и отказы.
 - **Docker** (`lab docker`): 110 контейнеров с UDP-обменом и HTTP-управлением.
 
-Отчёт: [`docs/report.pdf`](docs/report.pdf) (для печати) и [`docs/report.docx`](docs/report.docx) (для Google Docs).
+Отчёт: [`docs/report.pdf`](docs/report.pdf) и [`docs/report.docx`](docs/report.docx) (для Google Docs).
 
 ## Запуск
 
@@ -17,7 +17,6 @@ make test     # тесты
 make sim      # симуляция, CSV в results/ (около 10 с)
 make figures  # рисунки в docs/img/
 make docker   # 110 контейнеров, около 80 мин
-make report   # docs/report.pdf и docs/report.docx
 ```
 
 ## Структура
@@ -29,7 +28,7 @@ internal/engine     алгоритмы, топологии, метрики
 internal/sim        симулятор
 internal/agent      HTTP/UDP-агент узла
 internal/dockerlab  запуск контейнеров и прогоны
-scripts/            рисунки и сборка отчёта
+scripts/            построение рисунков по CSV
 results/            CSV результатов
-docs/               отчёт (report.md, report.pdf, report.docx), рисунки
+docs/               отчёт (report.pdf, report.docx); рисунки генерируются в docs/img/
 ```
