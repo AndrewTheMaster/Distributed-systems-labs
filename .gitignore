@@ -11,3 +11,6 @@ docs/report.pdf.tmp
 .env
 .env.local
 ~$*
+docs/report.pdf
+docs/report.docx
+docs/img/
