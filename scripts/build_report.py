@@ -7,17 +7,12 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
-import tempfile
 from pathlib import Path
 
 import fitz  # PyMuPDF
 import markdown
-import pypandoc
-from docx import Document
-from docx.enum.style import WD_STYLE_TYPE
-from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.shared import Cm, Pt, RGBColor
 
+from docx_report import build as build_docx
 from report_tables import inject
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -135,7 +130,7 @@ def add_page_numbers() -> None:
     tmp.replace(PDF)
 
 
-def build_pdf(md_text: str) -> None:
+def build_pdf(md_text: str) -> dict[str, object]:
     chrome = find_chrome()
     entries = headings(md_text)
     pages: dict[str, object] = {t: "" for t in entries}
@@ -152,121 +147,16 @@ def build_pdf(md_text: str) -> None:
     add_page_numbers()
     HTML.unlink(missing_ok=True)
     print(f"wrote {PDF.relative_to(ROOT)}")
-
-
-def _paragraphs(html: str, default_style: str) -> str:
-    """Turn <p class="..."> blocks into Word custom-style paragraphs."""
-    out = []
-    for cls, inner in re.findall(r'<p(?: class="(\w+)")?>(.*?)</p>', html, flags=re.S):
-        inner = inner.replace("&nbsp;", "").replace("<br>", "\\\n")
-        inner = re.sub(r"<b>(.*?)</b>", r"**\1**", inner).strip()
-        if inner:
-            style = TITLE_CLASS_STYLE.get(cls, default_style)
-            out.append(f'::: {{custom-style="{style}"}}\n{inner}\n:::\n')
-    return "\n".join(out)
-
-
-def docx_source(md_text: str) -> str:
-    """Markdown variant for pandoc: HTML blocks become custom Word styles."""
-    text = md_text
-
-    signs: list[str] = []
-
-    def sign_block(m: re.Match) -> str:
-        signs.append(_paragraphs(m.group(1), "Left Block"))
-        return f"@@SIGN{len(signs) - 1}@@"
-
-    def title_block(m: re.Match) -> str:
-        out = []
-        for part in re.split(r"(@@SIGN\d+@@)", m.group(1)):
-            out.append(part if part.startswith("@@SIGN") else _paragraphs(part, "Centered"))
-        return "".join(out)
-
-    text = re.sub(r'<div class="sign">(.*?)</div>', sign_block, text, flags=re.S)
-    text = re.sub(r'<div class="titlepage">(.*?)</div>', title_block, text, flags=re.S)
-    for i, block in enumerate(signs):
-        text = text.replace(f"@@SIGN{i}@@", block)
-    text = re.sub(r'<div class="toc-title">(.*?)</div>', r'::: {custom-style="Centered Bold"}\n\1\n:::', text)
-    text = text.replace('<div class="pagebreak"></div>',
-                        '```{=openxml}\n<w:p><w:r><w:br w:type="page"/></w:r></w:p>\n```')
-    text = re.sub(r'<p class="tcap">(.*?)</p>', r'::: {custom-style="Table Caption"}\n\1\n:::', text)
-    text = re.sub(r'<p class="caption">(.*?)</p>', r'::: {custom-style="Figure Caption"}\n\1\n:::', text)
-    text = re.sub(r"!\[.*?\]\((img/[^)]+)\)\{: \.fig\}", r"![](\1){width=15cm}", text)
-    def toc_entry(h: str) -> str:
-        escaped = re.sub(r"^(\d+)\.", r"\1\\.", h)  # keep "1." from becoming a list
-        return f'::: {{custom-style="Toc Line"}}\n{escaped}\n:::\n'
-
-    toc = "\n".join(toc_entry(h) for h in headings(md_text))
-    text = text.replace("<!--TOC-->", toc)
-    return re.sub(r"<!--.*?-->", "", text, flags=re.S)
-
-
-def reference_docx(path: Path) -> None:
-    pypandoc.convert_text("", "docx", format="markdown", outputfile=str(path))
-    doc = Document(str(path))
-    styles = doc.styles
-
-    def base(style, size=14, bold=False, align=None, indent=None, spacing=1.5):
-        style.font.name = "Times New Roman"
-        style.font.size = Pt(size)
-        style.font.bold = bold
-        style.font.color.rgb = RGBColor(0, 0, 0)
-        pf = style.paragraph_format
-        pf.line_spacing = spacing
-        pf.space_before = Pt(0)
-        pf.space_after = Pt(0)
-        if align is not None:
-            pf.alignment = align
-        if indent is not None:
-            pf.first_line_indent = indent
-
-    for name in ["Normal", "Body Text", "First Paragraph"]:
-        if name in [s.name for s in styles]:
-            base(styles[name], indent=Cm(1.25), align=WD_ALIGN_PARAGRAPH.JUSTIFY)
-    for name in ["Heading 1", "Heading 2"]:
-        base(styles[name], bold=True, align=WD_ALIGN_PARAGRAPH.CENTER if name == "Heading 1" else WD_ALIGN_PARAGRAPH.LEFT,
-             indent=Cm(0) if name == "Heading 1" else Cm(1.25))
-    if "Compact" in [s.name for s in styles]:
-        base(styles["Compact"], size=11, spacing=1.0, align=WD_ALIGN_PARAGRAPH.LEFT, indent=Cm(0))
-
-    custom = {
-        "Title Centered": dict(size=20, bold=True, align=WD_ALIGN_PARAGRAPH.CENTER, indent=Cm(0)),
-        "Centered": dict(size=14, align=WD_ALIGN_PARAGRAPH.CENTER, indent=Cm(0)),
-        "Centered Bold": dict(size=14, bold=True, align=WD_ALIGN_PARAGRAPH.CENTER, indent=Cm(0)),
-        "Left Block": dict(size=14, align=WD_ALIGN_PARAGRAPH.LEFT, indent=Cm(0)),
-        "Table Caption": dict(size=12, align=WD_ALIGN_PARAGRAPH.LEFT, indent=Cm(0), spacing=1.0),
-        "Figure Caption": dict(size=12, align=WD_ALIGN_PARAGRAPH.CENTER, indent=Cm(0), spacing=1.0),
-        "Toc Line": dict(size=14, align=WD_ALIGN_PARAGRAPH.LEFT, indent=Cm(0)),
-    }
-    for name, kw in custom.items():
-        if name not in [s.name for s in styles]:
-            styles.add_style(name, WD_STYLE_TYPE.PARAGRAPH).base_style = styles["Normal"]
-        base(styles[name], **kw)
-    for section in doc.sections:
-        section.page_width, section.page_height = Cm(21), Cm(29.7)
-        section.left_margin, section.right_margin = Cm(3), Cm(1.5)
-        section.top_margin, section.bottom_margin = Cm(2), Cm(2)
-    doc.save(str(path))
-
-
-def build_docx(md_text: str) -> None:
-    with tempfile.TemporaryDirectory() as tmp:
-        ref = Path(tmp) / "reference.docx"
-        reference_docx(ref)
-        pypandoc.convert_text(
-            docx_source(md_text), "docx", format="markdown",
-            outputfile=str(DOCX),
-            extra_args=["--reference-doc", str(ref), "--resource-path", str(DOCS)],
-        )
-    print(f"wrote {DOCX.relative_to(ROOT)}")
+    return pages
 
 
 def main() -> None:
     md_text = inject(REPORT.read_text(encoding="utf-8"))
     # Keep "NN %" on one line.
     md_text = re.sub(r"(\d) %", "\\1\u00a0%", md_text)
-    build_pdf(md_text)
-    build_docx(md_text)
+    pages = build_pdf(md_text)
+    build_docx(md_text, pages, DOCX)
+    print(f"wrote {DOCX.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":
