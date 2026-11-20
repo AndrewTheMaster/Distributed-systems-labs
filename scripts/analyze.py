@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render the figures used in docs/report.md from results/*.csv."""
+"""Render the figures of docs/report.md from results/*.csv (means with 95 % CI)."""
 
 from __future__ import annotations
 
@@ -11,6 +11,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import pandas as pd
+
+from report_tables import ci
 
 ROOT = Path(__file__).resolve().parents[1]
 RES = ROOT / "results"
@@ -63,17 +65,23 @@ def load(name: str) -> pd.DataFrame:
 
 
 def agg(df: pd.DataFrame, keys: list[str]) -> pd.DataFrame:
-    """Means over seeds; p95 only over runs that reached 95 % (others -> -1)."""
-    valid = df[df["dissemination_ms_95"] >= 0]
-    p95 = valid.groupby(keys)["dissemination_ms_95"].mean().rename("p95")
-    out = df.groupby(keys).agg(
-        coverage=("coverage_intended", "mean"),
-        coverage_total=("coverage_total", "mean"),
-        messages=("messages_sent", "mean"),
-    )
-    out = out.join(p95, how="left")
-    out["p95"] = out["p95"].fillna(-1.0)
-    return out.reset_index()
+    """Per group: mean and 95 % half-width (*_hw) of coverage, coverage_total and p95.
+    p95 is taken over runs that reached 95 %; other runs are excluded from p95 only."""
+    rows = []
+    for key, g in df.groupby(keys):
+        key = key if isinstance(key, tuple) else (key,)
+        rec = dict(zip(keys, key))
+        for col, src in [("coverage", "coverage_intended"), ("coverage_total", "coverage_total")]:
+            m, h, _ = ci(g[src])
+            rec[col], rec[f"{col}_hw"] = m, h
+        ok = g[g.dissemination_ms_95 >= 0]
+        if len(ok):
+            m, h, _ = ci(ok.dissemination_ms_95)
+            rec["p95"], rec["p95_hw"] = m, h
+        else:
+            rec["p95"], rec["p95_hw"] = -1.0, 0.0
+        rows.append(rec)
+    return pd.DataFrame(rows)
 
 
 def savefig(fig, name: str) -> None:
@@ -90,9 +98,9 @@ def line_plot(df, y, title, ylabel, xlabel, fname, x, logy=False, ylim=None):
         if cur.empty:
             continue
         ys = cur[y].astype(float)
-        if y == "p95":
-            ys = ys.where(ys > 0)
-        ax.plot(cur[x], ys, label=LABEL[alg], color=COLOR[alg], marker=MARKER[alg], linewidth=1.6, markersize=4.5)
+        keep = ys > 0 if y == "p95" else ys.notna()
+        ax.errorbar(cur[x][keep], ys[keep], yerr=cur[f"{y}_hw"][keep], label=LABEL[alg], color=COLOR[alg],
+                    marker=MARKER[alg], linewidth=1.6, markersize=4.5, capsize=2, elinewidth=0.8)
     if logy:
         ax.set_yscale("log")
         ax.yaxis.set_major_formatter(mticker.ScalarFormatter())
@@ -129,7 +137,8 @@ def main() -> None:
     fig, ax = plt.subplots(figsize=(7.0, 4.0))
     for alg in ["broadcast", "gossip_push", "anti_entropy"]:
         cur = scale_agg[(scale_agg.algorithm == alg) & (scale_agg.p95 > 0)].sort_values("nodes")
-        ax.plot(cur.nodes, cur.p95, marker=MARKER[alg], color=COLOR[alg], label=LABEL[alg], linewidth=1.6)
+        ax.errorbar(cur.nodes, cur.p95, yerr=cur.p95_hw, marker=MARKER[alg], color=COLOR[alg], label=LABEL[alg],
+                    linewidth=1.6, capsize=2, elinewidth=0.8)
     ax.set_xscale("log")
     ax.set_yscale("log")
     ax.set_xticks(sorted(scale.nodes.unique()))
@@ -146,7 +155,8 @@ def main() -> None:
     crash_agg = agg(crash, ["algorithm"])
     cr = crash_agg.set_index("algorithm").reindex([a for a in ORDER if a in set(crash_agg.algorithm)]).reset_index()
     fig, ax = plt.subplots(figsize=(7.0, 3.8))
-    bars = ax.bar([LABEL[a] for a in cr.algorithm], cr.coverage, color=[COLOR[a] for a in cr.algorithm])
+    bars = ax.bar([LABEL[a] for a in cr.algorithm], cr.coverage, yerr=cr.coverage_hw, capsize=3,
+                  color=[COLOR[a] for a in cr.algorithm])
     for b, v in zip(bars, cr.coverage):
         ax.text(b.get_x() + b.get_width() / 2, b.get_height() + 0.01, f"{v:.3f}", ha="center", va="bottom", fontsize=8)
     ax.set_ylim(0, 1.08)
@@ -169,11 +179,14 @@ def main() -> None:
     ]:
         sv = [float(ss.loc[a, col]) if a in ss.index else float("nan") for a in algs]
         dv = [float(ds.loc[a, col]) if a in ds.index else float("nan") for a in algs]
+        sh = [float(ss.loc[a, col + "_hw"]) if a in ss.index else 0.0 for a in algs]
+        dh = [float(ds.loc[a, col + "_hw"]) if a in ds.index else 0.0 for a in algs]
         if col == "p95":
             sv = [v if v > 0 else float("nan") for v in sv]
             dv = [v if v > 0 else float("nan") for v in dv]
-        ax.bar([i - w / 2 for i in x], sv, w, label="симуляция (5 seed)", color="#9ecae1")
-        ax.bar([i + w / 2 for i in x], dv, w, label="Docker, 110 контейнеров (2 seed)", color="#3182bd")
+        ax.bar([i - w / 2 for i in x], sv, w, yerr=sh, capsize=2, label="симуляция (30 seed)", color="#9ecae1")
+        ax.bar([i + w / 2 for i in x], dv, w, yerr=dh, capsize=2, label="Docker, 110 контейнеров (5 seed)",
+               color="#3182bd")
         ax.set_xticks(x)
         ax.set_xticklabels([LABEL[a] for a in algs], rotation=25, ha="right", fontsize=7)
         ax.set_title(title, fontsize=9)

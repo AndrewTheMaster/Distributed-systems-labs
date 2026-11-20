@@ -142,11 +142,16 @@ func Run(opts Options) error {
 		if err := waitHealthy(opts); err != nil {
 			return err
 		}
-		ips, err = containerIPs(names)
-		if err != nil {
-			return fmt.Errorf("container IP discovery: %w", err)
+		for attempt := 1; ; attempt++ {
+			ips, err = containerIPs(names)
+			if err == nil {
+				return nil
+			}
+			if attempt == 5 {
+				return fmt.Errorf("container IP discovery: %w", err)
+			}
+			time.Sleep(2 * time.Second)
 		}
-		return nil
 	}
 	if !opts.Reuse {
 		if opts.Build {

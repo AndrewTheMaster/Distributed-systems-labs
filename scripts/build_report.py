@@ -18,6 +18,8 @@ from docx.enum.style import WD_STYLE_TYPE
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Cm, Pt, RGBColor
 
+from report_tables import inject
+
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
 REPORT = DOCS / "report.md"
@@ -260,7 +262,7 @@ def build_docx(md_text: str) -> None:
 
 
 def main() -> None:
-    md_text = REPORT.read_text(encoding="utf-8")
+    md_text = inject(REPORT.read_text(encoding="utf-8"))
     # Keep "NN %" on one line.
     md_text = re.sub(r"(\d) %", "\\1\u00a0%", md_text)
     build_pdf(md_text)
